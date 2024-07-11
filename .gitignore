@@ -1,0 +1,12 @@
+#virtual environment
+venv/
+
+#other jupyter notebook
+00-simple-local-rag.ipynb
+
+#credential files
+creds.json
+
+#pdf files
+human-nutrition-text.pdf
+README.pdf
