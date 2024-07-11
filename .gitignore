@@ -1,5 +1,5 @@
 #virtual environment
-venv/
+.venv/
 
 #other jupyter notebook
 00-simple-local-rag.ipynb
