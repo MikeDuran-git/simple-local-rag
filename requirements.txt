@@ -11,6 +11,8 @@ accelerate
 bitsandbytes
 jupyter
 wheel
+langchain
+langchain-community
 
 
 # flash-attn
