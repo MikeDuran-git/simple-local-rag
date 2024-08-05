@@ -1,13 +1,11 @@
 import streamlit as st
 import torch
-import textwrap
 import numpy as np
 import pandas as pd
-import fitz
-import matplotlib.pyplot as plt
 from sentence_transformers import util, SentenceTransformer
 from time import perf_counter as timer
-import time
+import tiktoken  # Ensure you have tiktoken installed: pip install tiktoken
+
 # libraries
 from CleanRecipeMethods import *
 from UnitTestRecipe import *
@@ -37,6 +35,13 @@ def main_board():
         st.session_state.page = "Create Recipe"
     if st.button("Create Menu"):
         st.write("Menu creation not implemented yet.")
+
+
+def calculate_token_count(text, model_name=model):
+    encoder = tiktoken.encoding_for_model(model_name)
+    tokens = encoder.encode(text)
+    return len(tokens)
+
 
 # Recipe Creation Steps
 def create_recipe():
@@ -87,11 +92,16 @@ def create_recipe():
             recipe_prompt, generated_recipe = generate_recipe_based_on_questions_with_RAG(model=model)
             end_time = timer()
             elapsed_time = end_time - start_time
+            input_token_count = calculate_token_count(recipe_prompt)
+            output_token_count = calculate_token_count(generated_recipe)
             st.write("### Recipe Prompt")
             st.text_area("Prompt", recipe_prompt, height=300)
             st.write("### Generated Recipe")
+            formatted_recipe = format_recipe(generated_recipe)
+            st.text_area("Recipe", formatted_recipe, height=300)
             st.success(f'Recipe generated in {elapsed_time:.2f} seconds.')
-            st.text_area("Recipe", format_recipe(generated_recipe), height=300)
+            st.write(f"Input token count: {input_token_count}")
+            st.write(f"Output token count: {output_token_count}")
 
     if st.button("Return to Main Page"):
         st.session_state.page = "Main Board"
@@ -158,6 +168,13 @@ def retrieve_relevant_resources(query: str,
                                 n_resources_to_return: int=5,
                                 print_time: bool=True):
     """Embeds a query with model and returns top k scores and indices from embeddings."""
+
+    #since the there is not only the ingredients inside it we must retrieve it from the query
+    # for that we used a text model to get the ingredients from the query, one of hugging face models
+
+    
+
+
     query_embedding = model.encode(query, convert_to_tensor=True)
     start_time = timer()
     dot_scores = util.dot_score(query_embedding, embeddings)[0]
@@ -194,7 +211,7 @@ def prompt_formatter(query: str, context_items: str) -> str:
     prompt = base_prompt.format(context=context, query=query)
     return prompt
 
-def generate_recipe_with_RAG(query, embeddings, pages_and_chunks, model='ft:gpt-3.5-turbo-1106:personal:recipecreatorv7b:9XU88CKN'):
+def generate_recipe_with_RAG(query, embeddings, pages_and_chunks, model=model):
     """Generates a recipe using a Retrieval Augmented Generation (RAG) approach."""
     context = retrieve_relevant_recipe(query=query, embeddings=embeddings, pages_and_chunks=pages_and_chunks)
 
@@ -203,7 +220,7 @@ def generate_recipe_with_RAG(query, embeddings, pages_and_chunks, model='ft:gpt-
     recipe = send_message_to_recipe_model(prompt, model=model)
     return prompt, recipe
 
-def generate_recipe_based_on_questions_with_RAG(model='ft:gpt-3.5-turbo-1106:personal:recipecreatorv7b:9XU88CKN'):
+def generate_recipe_based_on_questions_with_RAG(model=model):
     dish_type = st.session_state.dish_type
     number_of_people = st.session_state.number_of_people
     diets = st.session_state.diets
@@ -274,10 +291,11 @@ def generate_recipe_based_on_questions_with_RAG(model='ft:gpt-3.5-turbo-1106:per
     - Category
     - Diet
     """
-
-    # Generate the recipe using the RAG method
+    RAG_context = retrieve_relevant_recipe(query=f"{', '.join(compatible_ingredients)}", embeddings=embeddings, pages_and_chunks=pages_and_chunks)
     try:
-        recipe_prompt, recipe = generate_recipe_with_RAG(prompt, embeddings, pages_and_chunks, model=model)
+        recipe_prompt = prompt + "\n Inspire yourself from the retreived recipe if possible:\n" + RAG_context
+
+        recipe = send_message_to_recipe_model(recipe_prompt, model=model)
     except Exception as e:
         print(f"Error generating recipe: {e}")
         return "An error occurred while generating the recipe."
