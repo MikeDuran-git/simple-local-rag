@@ -24,7 +24,7 @@ embeddings = torch.tensor(np.array(text_chunks_and_embedding_df["embedding"].tol
 
 # Navigation Function
 def navigate():
-    page = st.sidebar.selectbox("Select Page", ["Main Board", "Create Recipe"])
+    page = st.sidebar.selectbox("Select Page", ["Main Board", "Create Recipe", "Create Menu"])
     return page
 
 # Main Board Layout
@@ -34,14 +34,12 @@ def main_board():
     if st.button("Create Recipe"):
         st.session_state.page = "Create Recipe"
     if st.button("Create Menu"):
-        st.write("Menu creation not implemented yet.")
-
+        st.session_state.page = "Create Menu"
 
 def calculate_token_count(text, model_name=model):
     encoder = tiktoken.encoding_for_model(model_name)
     tokens = encoder.encode(text)
     return len(tokens)
-
 
 # Recipe Creation Steps
 def create_recipe():
@@ -168,13 +166,6 @@ def retrieve_relevant_resources(query: str,
                                 n_resources_to_return: int=5,
                                 print_time: bool=True):
     """Embeds a query with model and returns top k scores and indices from embeddings."""
-
-    #since the there is not only the ingredients inside it we must retrieve it from the query
-    # for that we used a text model to get the ingredients from the query, one of hugging face models
-
-    
-
-
     query_embedding = model.encode(query, convert_to_tensor=True)
     start_time = timer()
     dot_scores = util.dot_score(query_embedding, embeddings)[0]
@@ -301,6 +292,7 @@ def generate_recipe_based_on_questions_with_RAG(model=model):
         return "An error occurred while generating the recipe."
 
     return recipe_prompt, recipe
+
 def format_recipe(recipe):
     """
     This function formats the recipe string into a more readable format.
@@ -308,6 +300,139 @@ def format_recipe(recipe):
     recipe = recipe.replace("<recipe_start>", "\n").replace("<title_start>", "TITLE: ").replace("<ingredient_start>", "INGREDIENTS: \n-").replace("<ingredient_next>", "\n-").replace("<directions_start>", "DIRECTIONS: \n-").replace("<directions_next>", "\n-").replace("<calories_start>", "CALORIES: ").replace("<fatcontent_start>", "FAT: ").replace("<carbohydratecontent_start>", "CARBS: ").replace("<proteincontent_start>", "PROTEIN: ").replace("<prep_time_min_start>", "PREP TIME: ").replace("<type_start>", "TYPE: ").replace("<diet_start>", "DIET: ").replace("<title_end>", "\n").replace("<ingredient_end>", "\n").replace("<directions_end>", "\n").replace("<calories_end>", "\n").replace("<fatcontent_end>", "\n").replace("<carbohydratecontent_end>", "\n").replace("<proteincontent_end>", "\n").replace("<prep_time_min_end>", "\n").replace("<type_end>", "\n").replace("<diet_end>", "\n").replace("<recipe_end>", "\n")
 
     return recipe
+
+def create_menu():
+    st.title("Create Menu")
+
+    st.write("### Step 1: Number of Recipes")
+    num_recipes = st.slider("How many recipes do you want to have in your menu? (2 to 6)", 2, 6, 2)
+    st.session_state.num_recipes = num_recipes
+
+    st.write("### Step 2: Number of People")
+    number_of_people = st.slider("For how many people? (between 1 and 8)", 1, 8, 1)
+    st.session_state.number_of_people = number_of_people
+
+    st.write("### Step 3: Dietary Preferences and Restrictions")
+    diet_options = ["none", "vegan", "vegetarian", "vegetalian", "pescetarian", "no gluten", "no lactose", "no porc"]
+    diets = []
+    restrictions = []
+    for i in range(number_of_people):
+        st.write(f"#### Person {i+1}")
+        col1, col2 = st.columns(2)
+        with col1:
+            diet = st.selectbox(f"Diet", diet_options, key=f"menu_diet_{i}")
+        with col2:
+            restriction = st.text_input(f"Restrictions or dislikes (list ingredients, separated by commas)", key=f"menu_restriction_{i}")
+        diets.append(diet)
+        restrictions.append([r.strip().lower() for r in restriction.split(',')])
+    st.session_state.diets = diets
+    st.session_state.restrictions = restrictions
+
+    st.write("### Step 4: Cooking Tools")
+    tool_options = ["stovetop", "oven", "blender", "microwave", "automatic cooker", "fryer"]
+    cooking_tools = st.multiselect("What are your cooking tools?", tool_options)
+    st.session_state.cooking_tools = cooking_tools
+
+    recipes = []
+    for i in range(num_recipes):
+        st.write(f"### Recipe {i+1}")
+        recipe_type = st.selectbox("What type of recipe is it?", ["Breakfast", "Lunch", "Dinner", "Dessert", "Appetizer", "Snacks"], key=f"recipe_type_{i}")
+        ingredients = st.text_input(f"What ingredients will be in recipe {i+1}? (list up to 5 ingredients, separated by commas)", key=f"recipe_ingredients_{i}").split(',')
+        ingredients = [ing.strip().lower() for ing in ingredients]
+        time_options = ["at most 15 min", "between 15-30 min", "30 min or more"]
+        max_time = st.selectbox(f"In how much time would you like recipe {i+1} to be made?", time_options, key=f"recipe_time_{i}")
+        recipes.append((recipe_type, ingredients, max_time))
+    st.session_state.recipes = recipes
+
+    if st.button("Generate Menu"):
+        with st.spinner('Generating menu...'):
+            start_time = timer()
+            menu_prompt, generated_menu = generate_menu_based_on_questions_with_RAG(model=model)
+            end_time = timer()
+            elapsed_time = end_time - start_time
+            st.write("### Menu Prompt")
+            st.text_area("Prompt", menu_prompt, height=300)
+            st.write("### Generated Menu")
+            formatted_menu = [format_recipe(recipe) for recipe in generated_menu]
+            for i, recipe in enumerate(formatted_menu):
+                st.write(f"### Recipe {i+1}")
+                st.text_area(f"Recipe {i+1}", recipe, height=300)
+            st.success(f'Menu generated in {elapsed_time:.2f} seconds.')
+
+def generate_menu_based_on_questions_with_RAG(model='gpt-4o-mini'):
+    # Gather user input
+    num_recipes = st.session_state.num_recipes
+    number_of_people = st.session_state.number_of_people
+    diets = st.session_state.diets
+    restrictions = st.session_state.restrictions
+    cooking_tools = st.session_state.cooking_tools
+    recipes = st.session_state.recipes
+
+    menu_context = f"""
+    Number of Recipes: {num_recipes}
+    Number of People: {number_of_people}
+    Diets: {', '.join(diets)}
+    Restrictions:
+    """
+    for i in range(number_of_people):
+        menu_context += f"Person {i+1}: {', '.join(restrictions[i])}\n"
+    menu_context += f"Available Cooking Tools: {', '.join(cooking_tools)}\n\n"
+
+    menu = []
+    for i, (recipe_type, ingredients, max_time) in enumerate(recipes):
+        compatible_ingredients = []
+        for ingredient in ingredients:
+            original_ingredient = ingredient
+            for diet in diets:
+                alternative = suggest_alternative(ingredient, diet)
+                if alternative != ingredient:
+                    print(f"For the {diet} diet, replacing {ingredient} with {alternative}.")
+                ingredient = alternative
+            compatible_ingredients.append(ingredient)
+
+        # Build the context for each recipe
+        recipe_context = f"""
+        Recipe {i+1}:
+        Type: {recipe_type}
+        Preferred Ingredients: {', '.join(compatible_ingredients)}
+        Maximum Preparation Time: {max_time}
+        """
+        menu_context += recipe_context
+
+    # Format the prompt for the recipe model
+    prompt = f"""
+    You are an expert chef. Create a cohesive and harmonious menu based on the following criteria:
+    {menu_context}
+    
+    Each recipe must strictly adhere to the following guidelines:
+    1. Respect all dietary restrictions and dislikes. Do not include any ingredients that are listed as restrictions. 
+       If a restriction such as "red fruits" is specified, ensure no red fruits are included.
+    2. Use the preferred ingredients where possible, substituting alternatives if they conflict with any dietary restrictions or dislikes.
+    3. The preparation time should not exceed the specified maximum time.
+    4. The recipes should be suitable for the number of people specified.
+    5. The recipes should only require the specified cooking tools.
+    6. Ensure the dishes are logically sequenced and have a harmonious flow from one to the next.
+
+    Please provide the recipe with the following details:
+    - Title
+    - Ingredients (including quantities)
+    - Directions
+    - Nutritional information (calories, fat, carbs, protein)
+    - Preparation time
+    - Category
+    - Diet
+    """
+
+    # Generate the recipes for the menu using the RAG method
+    try:
+        for i in range(num_recipes):
+            recipe_prompt, recipe = generate_recipe_with_RAG(prompt, embeddings, pages_and_chunks, model=model)
+            menu.append(recipe)
+    except Exception as e:
+        print(f"Error generating menu: {e}")
+        return "An error occurred while generating the menu."
+
+    return prompt, menu
 
 def main():
     if 'page' not in st.session_state:
@@ -319,6 +444,8 @@ def main():
         main_board()
     elif page == "Create Recipe":
         create_recipe()
+    elif page == "Create Menu":
+        create_menu()
 
 if __name__ == "__main__":
     main()
