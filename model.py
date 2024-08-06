@@ -55,81 +55,13 @@ def main_board():
         st.session_state.page = "Create Menu"
     if st.button("My Creations"):
         st.session_state.page = "My Creations"
+    st.rerun()
 
 def calculate_token_count(text, model_name=model):
     encoder = tiktoken.encoding_for_model(model_name)
     tokens = encoder.encode(text)
     return len(tokens)
 
-# Recipe Creation Steps
-def create_recipe():
-    st.title("Create Recipe")
-    st.write("### Step 1: Select Dish Type")
-    dish_type = st.selectbox("What kind of dish do you want to make?", ["Breakfast", "Lunch", "Dinner", "Dessert", "Appetizer", "Snacks"])
-    st.session_state.dish_type = dish_type
-
-    st.write("### Step 2: Number of People")
-    number_of_people = st.slider("For how many people? (between 1 and 8)", 1, 8, 1)
-    st.session_state.number_of_people = number_of_people
-
-    st.write("### Step 3: Dietary Preferences and Restrictions")
-    diet_options = ["none", "vegan", "vegetarian", "vegetalian", "pescetarian", "no gluten", "no lactose", "no porc"]
-    diets = []
-    restrictions = []
-    for i in range(number_of_people):
-        st.write(f"#### Person {i+1}")
-        col1, col2 = st.columns(2)
-        with col1:
-            diet = st.selectbox(f"Diet", diet_options, key=f"diet_{i}")
-        with col2:
-            restriction = st.text_input(f"Restrictions or dislikes (list ingredients, separated by commas)", key=f"restriction_{i}")
-        diets.append(diet)
-        restrictions.append([r.strip().lower() for r in restriction.split(',')])
-    st.session_state.diets = diets
-    st.session_state.restrictions = restrictions
-
-    st.write("### Step 4: Ingredients")
-    ingredients = st.text_input("What ingredients would you like the recipe to have? (list up to 5 ingredients, separated by commas)").split(',')
-    ingredients = [ing.strip().lower() for ing in ingredients]
-    st.session_state.ingredients = ingredients
-
-    st.write("### Step 5: Preparation Time")
-    time_options = ["at most 15 min", "between 15-30 min", "30 min or more"]
-    max_time = st.selectbox("How much time would you like the recipe to take to prepare?", time_options)
-    st.session_state.max_time = max_time
-
-    st.write("### Step 6: Cooking Tools")
-    tool_options = ["none", "stovetop", "oven", "blender", "microwave", "automatic cooker", "fryer"]
-    cooking_tools = st.multiselect("What are your cooking tools?", tool_options)
-    st.session_state.cooking_tools = cooking_tools
-
-    if st.button("Generate Recipe"):
-        with st.spinner('Generating recipe...'):
-            start_time = timer()
-            recipe_prompt, generated_recipe = generate_recipe_based_on_questions_with_RAG()
-            end_time = timer()
-            elapsed_time = end_time - start_time
-            input_token_count = calculate_token_count(recipe_prompt)
-            output_token_count = calculate_token_count(generated_recipe)
-            st.write("### Recipe Prompt")
-            st.text_area("Prompt", recipe_prompt, height=300)
-            st.write("### Generated Recipe")
-            formatted_recipe = format_recipe(generated_recipe)
-            st.session_state.formatted_recipe = formatted_recipe  # Save the formatted recipe in session state
-            st.text_area("Recipe", formatted_recipe, height=300)
-            st.success(f'Recipe generated in {elapsed_time:.2f} seconds.')
-            st.write(f"Input token count: {input_token_count}")
-            st.write(f"Output token count: {output_token_count}")
-
-    if 'formatted_recipe' in st.session_state:
-        if st.button("Save Recipe"):
-            saved_recipes = load_recipes()
-            saved_recipes.append(st.session_state.formatted_recipe)
-            save_recipes(saved_recipes)
-            st.success("Recipe saved successfully!")
-
-    if st.button("Return to Main Page"):
-        st.session_state.page = "Main Board"
 
 def suggest_alternative(ingredient, diet):
     meat_alternatives = {
@@ -308,7 +240,84 @@ def format_recipe(recipe):
     recipe = recipe.replace("<recipe_start>", "").replace("<title_start>", "TITLE: ").replace("<ingredient_start>", "INGREDIENTS: \n-").replace("<ingredient_next>", "\n-").replace("<directions_start>", "DIRECTIONS: \n-").replace("<directions_next>", "\n-").replace("<calories_start>", "CALORIES: ").replace("<fatcontent_start>", "FAT: ").replace("<carbohydratecontent_start>", "CARBS: ").replace("<proteincontent_start>", "PROTEIN: ").replace("<prep_time_min_start>", "PREP TIME: ").replace("<type_start>", "TYPE: ").replace("<diet_start>", "DIET: ").replace("<title_end>", "\n").replace("<ingredient_end>", "\n").replace("<directions_end>", "\n").replace("<calories_end>", "\n").replace("<fatcontent_end>", "\n").replace("<carbohydratecontent_end>", "\n").replace("<proteincontent_end>", "\n").replace("<prep_time_min_end>", "\n").replace("<type_end>", "\n").replace("<diet_end>", "\n").replace("<recipe_end>", "")
     return recipe
 
+# Recipe Creation Steps
+def create_recipe():
+    if st.button("Return to Main Page"):
+        st.session_state.page = "Main Board"
+        st.rerun()
+    st.title("Create Recipe")
+    st.write("### Step 1: Select Dish Type")
+    dish_type = st.selectbox("What kind of dish do you want to make?", ["Breakfast", "Lunch", "Dinner", "Dessert", "Appetizer", "Snacks"])
+    st.session_state.dish_type = dish_type
+
+    st.write("### Step 2: Number of People")
+    number_of_people = st.slider("For how many people? (between 1 and 8)", 1, 8, 1)
+    st.session_state.number_of_people = number_of_people
+
+    st.write("### Step 3: Dietary Preferences and Restrictions")
+    diet_options = ["none", "vegan", "vegetarian", "vegetalian", "pescetarian", "no gluten", "no lactose", "no porc"]
+    diets = []
+    restrictions = []
+    for i in range(number_of_people):
+        st.write(f"#### Person {i+1}")
+        col1, col2 = st.columns(2)
+        with col1:
+            diet = st.selectbox(f"Diet", diet_options, key=f"diet_{i}")
+        with col2:
+            restriction = st.text_input(f"Restrictions or dislikes (list ingredients, separated by commas)", key=f"restriction_{i}")
+        diets.append(diet)
+        restrictions.append([r.strip().lower() for r in restriction.split(',')])
+    st.session_state.diets = diets
+    st.session_state.restrictions = restrictions
+
+    st.write("### Step 4: Ingredients")
+    ingredients = st.text_input("What ingredients would you like the recipe to have? (list up to 5 ingredients, separated by commas)").split(',')
+    ingredients = [ing.strip().lower() for ing in ingredients]
+    st.session_state.ingredients = ingredients
+
+    st.write("### Step 5: Preparation Time")
+    time_options = ["at most 15 min", "between 15-30 min", "30 min or more"]
+    max_time = st.selectbox("How much time would you like the recipe to take to prepare?", time_options)
+    st.session_state.max_time = max_time
+
+    st.write("### Step 6: Cooking Tools")
+    tool_options = ["none", "stovetop", "oven", "blender", "microwave", "automatic cooker", "fryer"]
+    cooking_tools = st.multiselect("What are your cooking tools?", tool_options)
+    st.session_state.cooking_tools = cooking_tools
+
+    if st.button("Generate Recipe"):
+        with st.spinner('Generating recipe...'):
+            start_time = timer()
+            recipe_prompt, generated_recipe = generate_recipe_based_on_questions_with_RAG()
+            end_time = timer()
+            elapsed_time = end_time - start_time
+            input_token_count = calculate_token_count(recipe_prompt)
+            output_token_count = calculate_token_count(generated_recipe)
+            st.write("### Recipe Prompt")
+            st.text_area("Prompt", recipe_prompt, height=300)
+            st.write("### Generated Recipe")
+            formatted_recipe = format_recipe(generated_recipe)
+            st.session_state.formatted_recipe = formatted_recipe  # Save the formatted recipe in session state
+            st.text_area("Recipe", formatted_recipe, height=300)
+            st.success(f'Recipe generated in {elapsed_time:.2f} seconds.')
+            st.write(f"Input token count: {input_token_count}")
+            st.write(f"Output token count: {output_token_count}")
+
+    if 'formatted_recipe' in st.session_state:
+        if st.button("Save Recipe"):
+            saved_recipes = load_recipes()
+            saved_recipes.append(st.session_state.formatted_recipe)
+            save_recipes(saved_recipes)
+            st.success("Recipe saved successfully!")
+            st.rerun()
+
+
+
+
 def create_menu():
+    if st.button("Return to Main Page"):
+        st.session_state.page = "Main Board"
+
     st.title("Create Menu")
 
     st.write("### Step 1: Number of Recipes")
@@ -372,8 +381,7 @@ def create_menu():
             for i, recipe in enumerate(formatted_menu):
                 st.write(f"### Recipe {i+1}")
                 st.text_area(f"Recipe {i+1}", recipe, height=300)
-    if st.button("Return to Main Page"):
-        st.session_state.page = "Main Board"
+
 
 def generate_menu_based_on_questions_with_RAG():
     num_recipes = st.session_state.num_recipes
@@ -496,6 +504,9 @@ def extract_diet(recipe):
 
 # My Creations Page
 def my_creations():
+    if st.button("Return to Main Page"):
+        st.session_state.page = "Main Board"
+        st.rerun()
     st.title("My Creations")
     saved_recipes = load_recipes()
     if not saved_recipes:
@@ -523,28 +534,18 @@ def my_creations():
             st.write(f"**Diet:** {diet}")
 
             if st.button(f"Delete Recipe {idx + 1}", key=f"delete_{idx}"):
-                try:
-
                     del saved_recipes[idx]
                     save_recipes(saved_recipes)
                     st.session_state.page = "My Creations"
-                    st.experimental_rerun()  # Use st.experimental_rerun to update the list
-                except AttributeError:
-                    #reload the page
-                    st.rerun()
+                    st.rerun()  
 
 
-
-    if st.button("Return to Main Page"):
-        st.session_state.page = "Main Board"
 
 # Main Function
 def main():
     if 'page' not in st.session_state:
         st.session_state.page = "Main Board"
-
     page = st.session_state.page
-
     if page == "Main Board":
         main_board()
     elif page == "Create Recipe":
