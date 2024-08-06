@@ -40,10 +40,25 @@ def save_recipes(recipes):
     with open("saved_recipes.json", "w") as f:
         json.dump(recipes, f)
 
+# Load saved menus
+def load_menus():
+    try:
+        with open("saved_menus.json", "r") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return []
+
+# Save menus
+def save_menus(menus):
+    with open("saved_menus.json", "w") as f:
+        json.dump(menus, f)
+
+
 # Navigation Function
 def navigate():
-    page = st.sidebar.selectbox("Select Page", ["Main Board", "Create Recipe", "Create Menu", "My Creations"])
+    page = st.sidebar.selectbox("Select Page", ["Main Board", "Create Recipe", "Create Menu", "My Creations", "My Menus"])
     return page
+
 
 # Main Board Layout
 def main_board():
@@ -51,11 +66,16 @@ def main_board():
     st.write("### Welcome to the AI Recipe Generator!")
     if st.button("Create Recipe"):
         st.session_state.page = "Create Recipe"
+        st.rerun()
     if st.button("Create Menu"):
         st.session_state.page = "Create Menu"
+        st.rerun()
     if st.button("My Creations"):
         st.session_state.page = "My Creations"
-    st.rerun()
+        st.rerun()
+    if st.button("My Menus"):
+        st.session_state.page = "My Menus"
+        st.rerun()
 
 def calculate_token_count(text, model_name=model):
     encoder = tiktoken.encoding_for_model(model_name)
@@ -311,12 +331,10 @@ def create_recipe():
             st.success("Recipe saved successfully!")
             st.rerun()
 
-
-
-
 def create_menu():
     if st.button("Return to Main Page"):
         st.session_state.page = "Main Board"
+        st.rerun()
 
     st.title("Create Menu")
 
@@ -378,10 +396,18 @@ def create_menu():
             generated_menu = [m.strip() for m in generated_menu if m.strip() != ""]
             st.write(f"Number of recipes generated: {len(generated_menu)}")  # Log de contrôle du nombre de recettes générées
             formatted_menu = [format_recipe(recipe) for recipe in generated_menu]
+            st.session_state.formatted_menu = formatted_menu  # Save the formatted menu in session state
             for i, recipe in enumerate(formatted_menu):
                 st.write(f"### Recipe {i+1}")
                 st.text_area(f"Recipe {i+1}", recipe, height=300)
 
+    if 'formatted_menu' in st.session_state:
+        if st.button("Save Menu"):
+            saved_menus = load_menus()
+            saved_menus.append(st.session_state.formatted_menu)
+            save_menus(saved_menus)
+            st.success("Menu saved successfully!")
+            st.rerun()
 
 def generate_menu_based_on_questions_with_RAG():
     num_recipes = st.session_state.num_recipes
@@ -539,6 +565,44 @@ def my_creations():
                     st.session_state.page = "My Creations"
                     st.rerun()  
 
+# My Menus Page
+def my_menus():
+    if st.button("Return to Main Page"):
+        st.session_state.page = "Main Board"
+        st.rerun()
+    st.title("My Menus")
+    saved_menus = load_menus()
+    if not saved_menus:
+        st.write("No menus saved yet.")
+    else:
+        for idx, menu in enumerate(saved_menus):
+            st.write(f"### Menu {idx + 1}")
+            for j, recipe in enumerate(menu):
+                title = extract_title(recipe)
+                ingredients = extract_ingredients(recipe)
+                directions = extract_directions(recipe)
+                calories, fat, carbs, protein = extract_nutritional_info(recipe)
+                prep_time = extract_prep_time(recipe)
+                type_ = extract_type(recipe)
+                diet = extract_diet(recipe)
+
+                st.write(f"#### Recipe {j + 1}: {title}")
+                st.write(f"**Ingredients:**\n{ingredients}")
+                st.write(f"**Directions:**\n{directions}")
+                st.write(f"**Nutritional Information:**")
+                st.write(f"- Calories: {calories}")
+                st.write(f"- Fat: {fat}")
+                st.write(f"- Carbs: {carbs}")
+                st.write(f"- Protein: {protein}")
+                st.write(f"**Prep Time:** {prep_time}")
+                st.write(f"**Type:** {type_}")
+                st.write(f"**Diet:** {diet}")
+
+            if st.button(f"Delete Menu {idx + 1}", key=f"delete_menu_{idx}"):
+                del saved_menus[idx]
+                save_menus(saved_menus)
+                st.session_state.page = "My Menus"
+                st.rerun()
 
 
 # Main Function
@@ -551,9 +615,12 @@ def main():
     elif page == "Create Recipe":
         create_recipe()
     elif page == "Create Menu":
-        st.write("Create Menu functionality here.")
+        create_menu()
     elif page == "My Creations":
         my_creations()
+    elif page == "My Menus":
+        my_menus()
 
 if __name__ == "__main__":
     main()
+
