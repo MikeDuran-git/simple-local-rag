@@ -26,9 +26,23 @@ embeddings = torch.tensor(
     dtype=torch.float32
 ).to("cuda" if torch.cuda.is_available() else "cpu")
 
+
+# Load saved recipes
+def load_recipes():
+    try:
+        with open("saved_recipes.json", "r") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return []
+
+# Save recipes
+def save_recipes(recipes):
+    with open("saved_recipes.json", "w") as f:
+        json.dump(recipes, f)
+
 # Navigation Function
 def navigate():
-    page = st.sidebar.selectbox("Select Page", ["Main Board", "Create Recipe", "Create Menu"])
+    page = st.sidebar.selectbox("Select Page", ["Main Board", "Create Recipe", "Create Menu", "My Creations"])
     return page
 
 # Main Board Layout
@@ -39,8 +53,10 @@ def main_board():
         st.session_state.page = "Create Recipe"
     if st.button("Create Menu"):
         st.session_state.page = "Create Menu"
+    if st.button("My Creations"):
+        st.session_state.page = "My Creations"
 
-def calculate_token_count(text, model_name='gpt-4o-mini'):
+def calculate_token_count(text, model_name=model):
     encoder = tiktoken.encoding_for_model(model_name)
     tokens = encoder.encode(text)
     return len(tokens)
@@ -99,10 +115,18 @@ def create_recipe():
             st.text_area("Prompt", recipe_prompt, height=300)
             st.write("### Generated Recipe")
             formatted_recipe = format_recipe(generated_recipe)
+            st.session_state.formatted_recipe = formatted_recipe  # Save the formatted recipe in session state
             st.text_area("Recipe", formatted_recipe, height=300)
             st.success(f'Recipe generated in {elapsed_time:.2f} seconds.')
             st.write(f"Input token count: {input_token_count}")
             st.write(f"Output token count: {output_token_count}")
+
+    if 'formatted_recipe' in st.session_state:
+        if st.button("Save Recipe"):
+            saved_recipes = load_recipes()
+            saved_recipes.append(st.session_state.formatted_recipe)
+            save_recipes(saved_recipes)
+            st.success("Recipe saved successfully!")
 
     if st.button("Return to Main Page"):
         st.session_state.page = "Main Board"
@@ -248,9 +272,10 @@ def generate_recipe_based_on_questions_with_RAG():
     context += f"Maximum Preparation Time: {max_time}\n"
     context += f"Available Cooking Tools: {', '.join(cooking_tools)}"
 
-    prompt = f"""You are an expert chef. Create a recipe based on the following criteria:
+    prompt = f"""
+    You are an expert culinary chef. Create a recipe based on the following criteria:
     {context}
-    
+
     The recipe must strictly adhere to the following guidelines:
     1. Respect all dietary restrictions and dislikes. Do not include any ingredients that are listed as restrictions. If a restriction such as "red fruits" is specified, ensure no red fruits are included.
     2. Use the preferred ingredients where possible, substituting alternatives if they conflict with any dietary restrictions or dislikes.
@@ -258,14 +283,16 @@ def generate_recipe_based_on_questions_with_RAG():
     4. The recipe should be suitable for the number of people specified.
     5. The recipe should only require the specified cooking tools.
 
-    Please provide the recipe with the following details:
+    For the recipe, provide the following details:
     - Title
     - Ingredients (including quantities)
     - Directions
-    - Nutritional information of the whole recipe (calories, fat, carbs, protein)
+    - Nutritional information for the whole recipe (calories, fat, carbs, protein)
     - Preparation time
     - Category
-    - Diet"""
+    - Diet
+    """
+
     RAG_context = retrieve_relevant_recipe(query=f"{', '.join(compatible_ingredients)}", embeddings=embeddings, pages_and_chunks=pages_and_chunks)
     try:
         recipe_prompt = prompt + "\nInspire yourself from the these recipe to make a high protein and healthy recipe if possible:\n" + RAG_context
@@ -345,6 +372,8 @@ def create_menu():
             for i, recipe in enumerate(formatted_menu):
                 st.write(f"### Recipe {i+1}")
                 st.text_area(f"Recipe {i+1}", recipe, height=300)
+    if st.button("Return to Main Page"):
+        st.session_state.page = "Main Board"
 
 def generate_menu_based_on_questions_with_RAG():
     num_recipes = st.session_state.num_recipes
@@ -384,8 +413,7 @@ def generate_menu_based_on_questions_with_RAG():
         """
         menu_context += recipe_context
 
-    prompt = f"""
-    You are an expert culinary chef. Create a cohesive and harmonious menu based on the following criteria:
+    prompt = f"""You are an expert culinary chef. Create a cohesive and harmonious menu based on the following criteria:
     {menu_context}
 
     Instructions:
@@ -408,7 +436,6 @@ def generate_menu_based_on_questions_with_RAG():
     - Diet
     """
 
-
     RAG_context = retrieve_relevant_recipe(query=f"{', '.join(compatible_ingredients)}", embeddings=embeddings, pages_and_chunks=pages_and_chunks)
     try:
         menu_prompt = prompt + "\nInspire yourself from the these recipe to make a high protein and healthy recipe if possible:\n" + RAG_context
@@ -420,18 +447,112 @@ def generate_menu_based_on_questions_with_RAG():
         return "An error occurred while generating the recipe."
 
     return menu_prompt, menu
+
+def extract_title(recipe):
+    title_start = recipe.find("TITLE:") + len("TITLE: ")
+    title_end = recipe.find("\n", title_start)
+    return recipe[title_start:title_end]
+
+def extract_ingredients(recipe):
+    ingredients_start = recipe.find("INGREDIENTS:") + len("INGREDIENTS: ")
+    ingredients_end = recipe.find("DIRECTIONS:")
+    return recipe[ingredients_start:ingredients_end].strip()
+
+def extract_directions(recipe):
+    directions_start = recipe.find("DIRECTIONS:") + len("DIRECTIONS: ")
+    directions_end = recipe.find("CALORIES:")
+    return recipe[directions_start:directions_end].strip()
+
+def extract_nutritional_info(recipe):
+    calories_start = recipe.find("CALORIES:") + len("CALORIES: ")
+    calories_end = recipe.find("FAT:")
+    fat_start = recipe.find("FAT:") + len("FAT: ")
+    fat_end = recipe.find("CARBS:")
+    carbs_start = recipe.find("CARBS:") + len("CARBS: ")
+    carbs_end = recipe.find("PROTEIN:")
+    protein_start = recipe.find("PROTEIN:") + len("PROTEIN: ")
+    protein_end = recipe.find("PREP TIME:")
+    return (
+        recipe[calories_start:calories_end].strip(),
+        recipe[fat_start:fat_end].strip(),
+        recipe[carbs_start:carbs_end].strip(),
+        recipe[protein_start:protein_end].strip()
+    )
+
+def extract_prep_time(recipe):
+    prep_time_start = recipe.find("PREP TIME:") + len("PREP TIME: ")
+    prep_time_end = recipe.find("TYPE:")
+    return recipe[prep_time_start:prep_time_end].strip()
+
+def extract_type(recipe):
+    type_start = recipe.find("TYPE:") + len("TYPE: ")
+    type_end = recipe.find("DIET:")
+    return recipe[type_start:type_end].strip()
+
+def extract_diet(recipe):
+    diet_start = recipe.find("DIET:") + len("DIET: ")
+    diet_end = recipe.find("\n", diet_start)
+    return recipe[diet_start:diet_end].strip()
+
+# My Creations Page
+def my_creations():
+    st.title("My Creations")
+    saved_recipes = load_recipes()
+    if not saved_recipes:
+        st.write("No recipes saved yet.")
+    else:
+        for idx, recipe in enumerate(saved_recipes):
+            title = extract_title(recipe)
+            ingredients = extract_ingredients(recipe)
+            directions = extract_directions(recipe)
+            calories, fat, carbs, protein = extract_nutritional_info(recipe)
+            prep_time = extract_prep_time(recipe)
+            type_ = extract_type(recipe)
+            diet = extract_diet(recipe)
+
+            st.write(f"### {title}")
+            st.write(f"**Ingredients:**\n{ingredients}")
+            st.write(f"**Directions:**\n{directions}")
+            st.write(f"**Nutritional Information:**")
+            st.write(f"- Calories: {calories}")
+            st.write(f"- Fat: {fat}")
+            st.write(f"- Carbs: {carbs}")
+            st.write(f"- Protein: {protein}")
+            st.write(f"**Prep Time:** {prep_time}")
+            st.write(f"**Type:** {type_}")
+            st.write(f"**Diet:** {diet}")
+
+            if st.button(f"Delete Recipe {idx + 1}", key=f"delete_{idx}"):
+                try:
+
+                    del saved_recipes[idx]
+                    save_recipes(saved_recipes)
+                    st.session_state.page = "My Creations"
+                    st.experimental_rerun()  # Use st.experimental_rerun to update the list
+                except AttributeError:
+                    #reload the page
+                    st.rerun()
+
+
+
+    if st.button("Return to Main Page"):
+        st.session_state.page = "Main Board"
+
+# Main Function
 def main():
     if 'page' not in st.session_state:
         st.session_state.page = "Main Board"
-    
+
     page = st.session_state.page
-    
+
     if page == "Main Board":
         main_board()
     elif page == "Create Recipe":
         create_recipe()
     elif page == "Create Menu":
-        create_menu()
+        st.write("Create Menu functionality here.")
+    elif page == "My Creations":
+        my_creations()
 
 if __name__ == "__main__":
     main()
