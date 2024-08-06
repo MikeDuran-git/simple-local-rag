@@ -21,10 +21,13 @@ text_chunks_and_embedding_df["embedding"] = text_chunks_and_embedding_df["embedd
     lambda x: np.fromstring(x.strip("[]"), sep=" ")
 )
 pages_and_chunks = text_chunks_and_embedding_df.to_dict(orient="records")
+# Load embeddings to the correct device
+device = "cuda" if torch.cuda.is_available() else "cpu"
 embeddings = torch.tensor(
     np.array(text_chunks_and_embedding_df["embedding"].tolist()), 
     dtype=torch.float32
-).to("cuda" if torch.cuda.is_available() else "cpu")
+).to(device)
+
 
 
 # Load saved recipes
@@ -141,7 +144,12 @@ def retrieve_relevant_resources(query: str,
                                 model: SentenceTransformer=embedding_model,
                                 n_resources_to_return: int=5,
                                 print_time: bool=True):
-    query_embedding = model.encode(query, convert_to_tensor=True)
+    # Determine the device of the embeddings tensor
+    device = embeddings.device
+    
+    # Encode the query and move it to the same device as embeddings
+    query_embedding = model.encode(query, convert_to_tensor=True).to(device)
+    
     start_time = timer()
     dot_scores = util.dot_score(query_embedding, embeddings)[0]
     end_time = timer()
@@ -149,6 +157,7 @@ def retrieve_relevant_resources(query: str,
         print(f"[INFO] Time taken to get scores on {len(embeddings)} embeddings: {end_time-start_time:.5f} seconds.")
     scores, indices = torch.topk(input=dot_scores, k=n_resources_to_return)
     return scores, indices
+
 
 def prompt_formatter(query: str, context_items: str) -> str:
     context = context_items
