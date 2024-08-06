@@ -4,21 +4,27 @@ import numpy as np
 import pandas as pd
 from sentence_transformers import util, SentenceTransformer
 from time import perf_counter as timer
-import tiktoken  # Ensure you have tiktoken installed: pip install tiktokens
+import tiktoken  # Ensure you have tiktoken installed: pip install tiktoken
 from CleanRecipeMethods import *
 from UnitTestRecipe import *
 import warnings
+
 warnings.filterwarnings("ignore")
 
 # Load models and data
 pdf_path = "greg_doucette_cookbook_2_0.pdf"
+model="gpt-4o-mini"
 recipe_dataset = pd.read_csv("recipe_dataset.csv")
 embedding_model = torch.load("embedding_model.pt")
-model = "gpt-4o-mini"
 text_chunks_and_embedding_df = pd.read_csv("text_chunks_and_embeddings_df.csv")
-text_chunks_and_embedding_df["embedding"] = text_chunks_and_embedding_df["embedding"].apply(lambda x: np.fromstring(x.strip("[]"), sep=" "))
+text_chunks_and_embedding_df["embedding"] = text_chunks_and_embedding_df["embedding"].apply(
+    lambda x: np.fromstring(x.strip("[]"), sep=" ")
+)
 pages_and_chunks = text_chunks_and_embedding_df.to_dict(orient="records")
-embeddings = torch.tensor(np.array(text_chunks_and_embedding_df["embedding"].tolist()), dtype=torch.float32).to("cuda" if torch.cuda.is_available() else "cpu")
+embeddings = torch.tensor(
+    np.array(text_chunks_and_embedding_df["embedding"].tolist()), 
+    dtype=torch.float32
+).to("cuda" if torch.cuda.is_available() else "cpu")
 
 # Navigation Function
 def navigate():
@@ -34,7 +40,7 @@ def main_board():
     if st.button("Create Menu"):
         st.session_state.page = "Create Menu"
 
-def calculate_token_count(text, model_name=model):
+def calculate_token_count(text, model_name='gpt-4o-mini'):
     encoder = tiktoken.encoding_for_model(model_name)
     tokens = encoder.encode(text)
     return len(tokens)
@@ -42,7 +48,6 @@ def calculate_token_count(text, model_name=model):
 # Recipe Creation Steps
 def create_recipe():
     st.title("Create Recipe")
-
     st.write("### Step 1: Select Dish Type")
     dish_type = st.selectbox("What kind of dish do you want to make?", ["Breakfast", "Lunch", "Dinner", "Dessert", "Appetizer", "Snacks"])
     st.session_state.dish_type = dish_type
@@ -85,7 +90,7 @@ def create_recipe():
     if st.button("Generate Recipe"):
         with st.spinner('Generating recipe...'):
             start_time = timer()
-            recipe_prompt, generated_recipe = generate_recipe_based_on_questions_with_RAG(model=model)
+            recipe_prompt, generated_recipe = generate_recipe_based_on_questions_with_RAG()
             end_time = timer()
             elapsed_time = end_time - start_time
             input_token_count = calculate_token_count(recipe_prompt)
@@ -103,7 +108,6 @@ def create_recipe():
         st.session_state.page = "Main Board"
 
 def suggest_alternative(ingredient, diet):
-    """Suggests an alternative ingredient based on the diet."""
     meat_alternatives = {
         'chicken': 'vegan chicken',
         'beef': 'vegan beef',
@@ -137,7 +141,6 @@ def suggest_alternative(ingredient, diet):
         }
     }
 
-    # Handle vegan meat alternatives
     if diet == 'vegan' and ingredient.lower() in meat_alternatives:
         return meat_alternatives[ingredient.lower()]
     return alternatives.get(diet, {}).get(ingredient.lower(), ingredient)
@@ -163,7 +166,6 @@ def retrieve_relevant_resources(query: str,
                                 model: SentenceTransformer=embedding_model,
                                 n_resources_to_return: int=5,
                                 print_time: bool=True):
-    """Embeds a query with model and returns top k scores and indices from embeddings."""
     query_embedding = model.encode(query, convert_to_tensor=True)
     start_time = timer()
     dot_scores = util.dot_score(query_embedding, embeddings)[0]
@@ -174,10 +176,9 @@ def retrieve_relevant_resources(query: str,
     return scores, indices
 
 def prompt_formatter(query: str, context_items: str) -> str:
-    """Formats the prompt for the recipe model."""
     context = context_items
     base_prompt = """
-    You are an expert chef. Create a recipe based on the following criteria:
+    You are an expert culinary chef with more than 10 years of experience. Create a recipe based on the following criteria:
     {context}
     
     The recipe must strictly adhere to the following guidelines:
@@ -200,7 +201,7 @@ def prompt_formatter(query: str, context_items: str) -> str:
     prompt = base_prompt.format(context=context, query=query)
     return prompt
 
-def generate_recipe_based_on_questions_with_RAG(model=model):
+def generate_recipe_based_on_questions_with_RAG():
     dish_type = st.session_state.dish_type
     number_of_people = st.session_state.number_of_people
     diets = st.session_state.diets
@@ -209,7 +210,6 @@ def generate_recipe_based_on_questions_with_RAG(model=model):
     max_time = st.session_state.max_time
     cooking_tools = st.session_state.cooking_tools
 
-    # Check for incompatible ingredients and suggest alternatives
     compatible_ingredients = []
     meat_alternatives = {
         'chicken': 'vegan chicken',
@@ -236,7 +236,6 @@ def generate_recipe_based_on_questions_with_RAG(model=model):
         else:
             compatible_ingredients.append(ingredient)
 
-    # Build the context for the recipe
     context = f"""
     Dish Type: {dish_type}
     Number of People: {number_of_people}
@@ -249,7 +248,6 @@ def generate_recipe_based_on_questions_with_RAG(model=model):
     context += f"Maximum Preparation Time: {max_time}\n"
     context += f"Available Cooking Tools: {', '.join(cooking_tools)}"
 
-    # Format the prompt for the recipe model
     prompt = f"""You are an expert chef. Create a recipe based on the following criteria:
     {context}
     
@@ -272,7 +270,7 @@ def generate_recipe_based_on_questions_with_RAG(model=model):
     try:
         recipe_prompt = prompt + "\nInspire yourself from the these recipe to make a high protein and healthy recipe if possible:\n" + RAG_context
 
-        recipe = send_message_to_recipe_model(recipe_prompt, model=model)
+        recipe = send_message_to_recipe_model(recipe_prompt,model=model)
     except Exception as e:
         print(f"Error generating recipe: {e}")
         return "An error occurred while generating the recipe."
@@ -280,11 +278,7 @@ def generate_recipe_based_on_questions_with_RAG(model=model):
     return recipe_prompt, recipe
 
 def format_recipe(recipe):
-    """
-    This function formats the recipe string into a more readable format.
-    """
     recipe = recipe.replace("<recipe_start>", "").replace("<title_start>", "TITLE: ").replace("<ingredient_start>", "INGREDIENTS: \n-").replace("<ingredient_next>", "\n-").replace("<directions_start>", "DIRECTIONS: \n-").replace("<directions_next>", "\n-").replace("<calories_start>", "CALORIES: ").replace("<fatcontent_start>", "FAT: ").replace("<carbohydratecontent_start>", "CARBS: ").replace("<proteincontent_start>", "PROTEIN: ").replace("<prep_time_min_start>", "PREP TIME: ").replace("<type_start>", "TYPE: ").replace("<diet_start>", "DIET: ").replace("<title_end>", "\n").replace("<ingredient_end>", "\n").replace("<directions_end>", "\n").replace("<calories_end>", "\n").replace("<fatcontent_end>", "\n").replace("<carbohydratecontent_end>", "\n").replace("<proteincontent_end>", "\n").replace("<prep_time_min_end>", "\n").replace("<type_end>", "\n").replace("<diet_end>", "\n").replace("<recipe_end>", "")
-
     return recipe
 
 def create_menu():
@@ -333,11 +327,10 @@ def create_menu():
     if st.button("Generate Menu"):
         with st.spinner('Generating menu...'):
             start_time = timer()
-            menu_prompt, generated_menu = generate_menu_based_on_questions_with_RAG(model=model)
+            menu_prompt, generated_menu = generate_menu_based_on_questions_with_RAG()
             end_time = timer()
             elapsed_time = end_time - start_time
             input_token_count = calculate_token_count(menu_prompt)
-            #we converge the list of generated_menu into a string to calculate the token count
             output_token_count = calculate_token_count("".join(generated_menu))
             st.write("### Menu Prompt")
             st.text_area("Prompt", menu_prompt, height=300)
@@ -345,13 +338,15 @@ def create_menu():
             st.success(f'Menu generated in {elapsed_time:.2f} seconds.')
             st.write(f'Input token count: {input_token_count}')
             st.write(f'Output token count: {output_token_count}')
+            generated_menu = generated_menu.split("<recipe_end>")
+            generated_menu = [m.strip() for m in generated_menu if m.strip() != ""]
+            st.write(f"Number of recipes generated: {len(generated_menu)}")  # Log de contrôle du nombre de recettes générées
             formatted_menu = [format_recipe(recipe) for recipe in generated_menu]
             for i, recipe in enumerate(formatted_menu):
                 st.write(f"### Recipe {i+1}")
                 st.text_area(f"Recipe {i+1}", recipe, height=300)
 
-def generate_menu_based_on_questions_with_RAG(model='gpt-4o-mini'):
-    # Gather user input
+def generate_menu_based_on_questions_with_RAG():
     num_recipes = st.session_state.num_recipes
     number_of_people = st.session_state.number_of_people
     diets = st.session_state.diets
@@ -381,7 +376,6 @@ def generate_menu_based_on_questions_with_RAG(model='gpt-4o-mini'):
                 ingredient = alternative
             compatible_ingredients.append(ingredient)
 
-        # Build the context for each recipe
         recipe_context = f"""
         Recipe {i+1}:
         Type: {recipe_type}
@@ -390,21 +384,21 @@ def generate_menu_based_on_questions_with_RAG(model='gpt-4o-mini'):
         """
         menu_context += recipe_context
 
-    # Format the prompt for the recipe model
     prompt = f"""
-    You are an expert chef. Create a cohesive and harmonious menu based on the following criteria:
+    You are an expert culinary chef. Create a cohesive and harmonious menu based on the following criteria:
     {menu_context}
-    
-    Each recipe must strictly adhere to the following guidelines:
-    1. Respect all dietary restrictions and dislikes. Do not include any ingredients that are listed as restrictions. 
-       If a restriction such as "red fruits" is specified, ensure no red fruits are included.
-    2. Use the preferred ingredients where possible, substituting alternatives if they conflict with any dietary restrictions or dislikes.
-    3. The preparation time should not exceed the specified maximum time.
-    4. The recipes should be suitable for the number of people specified.
-    5. The recipes should only require the specified cooking tools.
-    6. Ensure the dishes are logically sequenced and have a harmonious flow from one to the next.
 
-    Please provide each recipe with the following details:
+    Instructions:
+    1. You must respect the number of recipes specified. For example, if the number of recipes is 2, then only return 2 recipes, not more, not less.
+    2. Each recipe must strictly adhere to the following guidelines:
+        a. Respect all dietary restrictions and dislikes. Do not include any ingredients that are listed as restrictions. If a restriction such as "red fruits" is specified, ensure no red fruits are included.
+        b. Use the preferred ingredients where possible, substituting alternatives if they conflict with any dietary restrictions or dislikes.
+        c. The preparation time should not exceed the specified maximum time.
+        d. The recipes should be suitable for the number of people specified.
+        e. The recipes should only require the specified cooking tools.
+        f. Ensure the dishes are logically sequenced and have a harmonious flow from one to the next.
+
+    For each recipe, provide the following details:
     - Title
     - Ingredients (including quantities)
     - Directions
@@ -414,21 +408,18 @@ def generate_menu_based_on_questions_with_RAG(model='gpt-4o-mini'):
     - Diet
     """
 
+
     RAG_context = retrieve_relevant_recipe(query=f"{', '.join(compatible_ingredients)}", embeddings=embeddings, pages_and_chunks=pages_and_chunks)
     try:
         menu_prompt = prompt + "\nInspire yourself from the these recipe to make a high protein and healthy recipe if possible:\n" + RAG_context
         
-        menu = send_message_to_recipe_model(menu_prompt, model=model)
-        #we separate the menu by the token <recipe_end>
-        menu = menu.split("<recipe_end>")
-        menu = [m.strip() for m in menu if m.strip() != ""]
-        print(menu)
+        menu = send_message_to_recipe_model(menu_prompt,model=model)
+        print(f"Generated menu: {menu}")
     except Exception as e:
         print(f"Error generating recipe: {e}")
         return "An error occurred while generating the recipe."
 
     return menu_prompt, menu
-
 def main():
     if 'page' not in st.session_state:
         st.session_state.page = "Main Board"
