@@ -94,9 +94,11 @@ class TestRecipeGeneration(unittest.TestCase):
 with open('./openaiCredentials.json') as f:
     data = json.load(f)
     api_key = data['OPENAI_API_KEY']
+    organization = data['ORGANIZATION_ID']
 
 client = OpenAI(
-    api_key=api_key
+    api_key=api_key,
+    organization=organization
 )
 
 def send_message_to_recipe_model(msg, 
