@@ -601,3 +601,7 @@ df.to_csv('text_chunks_and_embeddings_df.csv', index=False)
 
 #we save the embedding model to use it later
 torch.save(embedding_model, 'embedding_model.pt')
+
+os.remove('cleaned_cookbook_data.csv')
+os.remove('P_D_I_P_R.csv')
+os.remove('P_T_C_F_C_F_P.csv')

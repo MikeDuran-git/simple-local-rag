@@ -1,6 +1,6 @@
 #virtual environment
 .venv/
-
+app-env/
 #other jupyter notebook
 00-simple-local-rag.ipynb
 
@@ -10,3 +10,8 @@ creds.json
 #pdf files
 human-nutrition-text.pdf
 README.pdf
+embedding_model.pt
+recipe_dataset.csv
+saved_menus.json
+saved_recipes.json
+saved_plans.json
