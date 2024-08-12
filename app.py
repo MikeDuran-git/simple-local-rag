@@ -547,53 +547,65 @@ def generate_menu_based_on_questions_with_RAG():
 
 
 def extract_title(recipe):
+    if isinstance(recipe, dict):
+        return recipe.get("TITLE", "")
     title_start = recipe.find("TITLE:") + len("TITLE: ")
     title_end = recipe.find("\n", title_start)
     return recipe[title_start:title_end]
 
-
 def extract_ingredients(recipe):
+    if isinstance(recipe, dict):
+        return recipe.get("INGREDIENTS", "")
     ingredients_start = recipe.find("INGREDIENTS:") + len("INGREDIENTS: ")
     ingredients_end = recipe.find("DIRECTIONS:")
     return recipe[ingredients_start:ingredients_end].strip()
 
-
 def extract_directions(recipe):
+    if isinstance(recipe, dict):
+        return recipe.get("DIRECTIONS", "")
     directions_start = recipe.find("DIRECTIONS:") + len("DIRECTIONS: ")
     directions_end = recipe.find("CALORIES:")
     return recipe[directions_start:directions_end].strip()
 
-
 def extract_nutritional_info(recipe):
-    calories_start = recipe.find("CALORIES:") + len("CALORIES: ")
-    calories_end = recipe.find("FAT:")
-    fat_start = recipe.find("FAT:") + len("FAT: ")
-    fat_end = recipe.find("CARBS:")
-    carbs_start = recipe.find("CARBS:") + len("CARBS: ")
-    carbs_end = recipe.find("PROTEIN:")
-    protein_start = recipe.find("PROTEIN:") + len("PROTEIN: ")
-    protein_end = recipe.find("PREP TIME:")
-    return (
-        recipe[calories_start:calories_end].strip(),
-        recipe[fat_start:fat_end].strip(),
-        recipe[carbs_start:carbs_end].strip(),
-        recipe[protein_start:protein_end].strip()
-    )
+    if isinstance(recipe, dict):
+        calories = recipe.get("CALORIES", "")
+        fat = recipe.get("FAT", "")
+        carbs = recipe.get("CARBS", "")
+        protein = recipe.get("PROTEIN", "")
+    else:
+        calories_start = recipe.find("CALORIES:") + len("CALORIES: ")
+        calories_end = recipe.find("FAT:")
+        fat_start = recipe.find("FAT:") + len("FAT: ")
+        fat_end = recipe.find("CARBS:")
+        carbs_start = recipe.find("CARBS:") + len("CARBS: ")
+        carbs_end = recipe.find("PROTEIN:")
+        protein_start = recipe.find("PROTEIN:") + len("PROTEIN: ")
+        protein_end = recipe.find("PREP TIME:")
+        calories = recipe[calories_start:calories_end].strip()
+        fat = recipe[fat_start:fat_end].strip()
+        carbs = recipe[carbs_start:carbs_end].strip()
+        protein = recipe[protein_start:protein_end].strip()
 
+    return calories, fat, carbs, protein
 
 def extract_prep_time(recipe):
+    if isinstance(recipe, dict):
+        return recipe.get("PREP TIME", "")
     prep_time_start = recipe.find("PREP TIME:") + len("PREP TIME: ")
     prep_time_end = recipe.find("TYPE:")
     return recipe[prep_time_start:prep_time_end].strip()
 
-
 def extract_type(recipe):
+    if isinstance(recipe, dict):
+        return recipe.get("TYPE", "")
     type_start = recipe.find("TYPE:") + len("TYPE: ")
     type_end = recipe.find("DIET:")
     return recipe[type_start:type_end].strip()
 
-
 def extract_diet(recipe):
+    if isinstance(recipe, dict):
+        return recipe.get("DIET", "")
     diet_start = recipe.find("DIET:") + len("DIET: ")
     diet_end = recipe.find("\n", diet_start)
     return recipe[diet_start:diet_end].strip()
