@@ -14,7 +14,7 @@ warnings.filterwarnings("ignore")
 
 # Load models and data
 pdf_path = "greg_doucette_cookbook_2_0.pdf"
-model = "gpt-4o-mini"
+model="ft:gpt-4o-mini-2024-07-18:personal:recipecreatorv8:9vLqipXh" #replace with gpt-4o-mini to have more accurate data.
 recipe_dataset = pd.read_csv("recipe_dataset.csv")
 embedding_model = torch.load("embedding_model.pt")
 text_chunks_and_embedding_df = pd.read_csv("text_chunks_and_embeddings_df.csv")
@@ -84,7 +84,7 @@ def navigate():
 # Main Board Layout
 def main_board():
     st.title("Recipe CreAItor")
-    st.markdown("### Welcome to AI buffed Recipe generator!")
+    st.markdown("### Welcome to your AI buffed Recipe generator!")
     st.markdown("_Don't laugh, your name isn't any better!_")
     st.caption("Create New Recipes, Menus, and Weekly Plans")
     st.markdown("---")
@@ -336,14 +336,14 @@ def create_recipe():
         with col1:
             diet = st.selectbox(f"Diet", diet_options, key=f"diet_{i}")
         with col2:
-            restriction = st.text_input(f"Restrictions or dislikes (list ingredients, separated by commas)", key=f"restriction_{i}")
+            restriction = st.text_input(f"Restrictions or dislikes (ex: 'no red fruits, no nuts...')", key=f"restriction_{i}")
         diets.append(diet)
         restrictions.append([r.strip().lower() for r in restriction.split(',')])
     st.session_state.diets = diets
     st.session_state.restrictions = restrictions
 
     st.write("### Step 4: Ingredients")
-    ingredients = st.text_input("What ingredients would you like the recipe to have? (list up to 5 ingredients, separated by commas)").split(',')
+    ingredients = st.text_input("What ingredients would you like the recipe to have? (list up to 5 ingredients separated by commas, you can also just say 'fruits' or 'vegetables')").split(',')
     ingredients = [ing.strip().lower() for ing in ingredients]
     st.session_state.ingredients = ingredients
 
@@ -353,7 +353,7 @@ def create_recipe():
     st.session_state.max_time = max_time
 
     st.write("### Step 6: Cooking Tools")
-    tool_options = ["none", "stovetop", "oven", "blender", "microwave", "automatic cooker", "fryer"]
+    tool_options = ["stovetop", "oven", "blender", "microwave", "automatic cooker", "fryer"]
     cooking_tools = st.multiselect("What are your cooking tools?", tool_options)
     st.session_state.cooking_tools = cooking_tools
 
