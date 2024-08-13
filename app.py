@@ -837,12 +837,39 @@ def my_plans():
             st.write(f"### Plan {idx + 1}: {plan['plan_name']}")
             for day, items in plan["days"].items():
                 st.write(f"#### {day}")
+
+                # Initialize totals for the day's nutritional information
+                total_calories = 0
+                total_fat = 0
+                total_carbs = 0
+                total_protein = 0
+
                 for item in items:
-                    if isinstance(item, list):
-                        for recipe in item:
+                    if isinstance(item, dict) and 'recipes' in item:
+                        for recipe in item['recipes']:
                             display_recipe(recipe)
+                            # Sum up the nutritional information
+                            calories, fat, carbs, protein = extract_nutritional_info(recipe)
+                            total_calories += float(calories)
+                            total_fat += float(fat)
+                            total_carbs += float(carbs)
+                            total_protein += float(protein)
                     else:
                         display_recipe(item)
+                        # Sum up the nutritional information
+                        calories, fat, carbs, protein = extract_nutritional_info(item)
+                        total_calories += float(calories)
+                        total_fat += float(fat)
+                        total_carbs += float(carbs)
+                        total_protein += float(protein)
+
+                # Display the total nutritional information for the day
+                st.write(f"**Total Nutritional Information for {day}:**")
+                st.write(f"- Calories: {total_calories}")
+                st.write(f"- Fat: {total_fat}g")
+                st.write(f"- Carbs: {total_carbs}g")
+                st.write(f"- Protein: {total_protein}g")
+                st.write("---")
 
             if st.button(f"Generate Grocery List for Plan {idx + 1}", key=f"plan_select_{idx}"):
                 all_recipes = [recipe for day_items in plan["days"].values() for item in day_items for recipe in (item if isinstance(item, list) else [item])]
